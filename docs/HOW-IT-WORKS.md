@@ -1,13 +1,13 @@
 # 根因分析与验证手段
 
-这份文档记录四个缺陷**为什么**会出现、**怎么定位**的，以及**怎么独立验证**。
+这份文档记录五个缺陷（其中 05 只影响 Wayland 会话）**为什么**会出现、**怎么定位**的，以及**怎么独立验证**。
 适合想搞清楚原理、或想把这套方法用到别的老软件上的人。
 
 ---
 
 ## 总览
 
-四个缺陷**互相独立**，各自让应用卡在完全不同的阶段：
+缺陷彼此独立，各自让应用卡在完全不同的阶段：
 
 ```
 启动
@@ -18,8 +18,10 @@
  │   └─ [03] app_id = python3  → 窗口能出来，但 GNOME 认不出归属
  ├─ 显示界面
  │   └─ [02] 后端 IndentationError → DBus 服务起不来 → 每次交互主线程卡 5 秒
- └─ 托盘交互
-     └─ [04] 槽签名错误        → 点击静默失败
+ ├─ 托盘交互
+ │   └─ [04] 槽签名错误        → 点击静默失败
+ └─ 首次交互 (Wayland)
+     └─ [05] 未映射窗口写 X 属性 → BadWindow → WebKit 段错误，进程消失
 ```
 
 其中 **02 和 04 与 Python 版本毫无关系**——是这个包**自带**的笔误，任何系统上都存在。换句话说：这个包在它自己的年代、它自己的发行版上，可能也有一半功能是坏的。
@@ -171,6 +173,33 @@ TypeError: W.setVisible() missing 1 required positional argument: 'visible'
 **顺带一提**：托盘的 Qt 侧接口本身是好的——用 `busctl --user call <SNI> ... Activate ii 5 5` 模拟点击，Qt 会正常发出 `activated` 信号（reason=3 左键 / 1 右键）。断的是它到 JS 的这一跳。
 
 **为什么右键仍然没救**：右键要弹菜单，而 Qt5 的托盘实现导出的是 `Menu=/NO_DBUSMENU`（Qt 不实现 DBusMenu 协议），GNOME 侧根本没有菜单可弹。要修得整个重写托盘实现，性价比太低。
+
+---
+
+## 05 · Wayland 下启动即崩、缩放不跟手
+
+**症状**：GNOME Wayland 会话里，启动后第一下交互时进程消失；`journalctl` 里能看到
+`<class 'Xlib.error.BadWindow'>: code = 3 ... major_opcode = 18`，紧跟着
+`python3[pid]: segfault ... in libQt5WebKit.so.5`；`/var/crash` 留下 SIGSEGV 报告。
+
+**根因**：`dae/shadowwindow.py` 的 `setShadowWidth()` 在 `__init__` 里（窗口还没映射）就取
+`int(self.winId())`，用 python-xlib 直接向该窗口写 `DEEPIN_WINDOW_SHADOW`。
+Wayland 会话里 Qt 不创建 X 窗口，`winId()` 得到的不是 XID，WM 回 BadWindow；
+异常从事件回调里逸出，和第一次 WebKit 绘制相撞 → 段错误。
+
+**怎么定位**：`journalctl -b | grep -A3 BadWindow`，或用 `/var/crash` 里的 `Date:` 对齐日志时间。
+只用崩溃报告本身看不出原因（里面只有 SIGSEGV，没有 Python 栈）——真正有用的是崩溃前那一行 X 错误。
+
+**第二个问题（缩放不跟手）**：主窗口是 `QQuickView`，它是 `QWindow` 而不是 `QWidget`，
+**没有** `move()/setX()/setY()`。QML 用 `mainView.setX/setY` 摆位置、`dae/window.py` 的拖动又走
+Xlib `set_geometry`——所以 QML 读到的坐标永远是 0、拖动时 Qt 侧的位置从未更新过。
+在 Wayland 下这条 Xlib 路径不会生效，而 Qt 自己的定位又根本不存在——两个原因叠在一起，窗口就纹丝不动。
+
+**修法**：X 错误只忽略 BadWindow；阴影属性延后到事件循环；`getXWindow()` 拿不到真窗口返回 `None`；
+在 `QQuickView` 上补 `x/y/move/resize` 委托给 `QWindow`，缩放改走 Qt 自己的 `resize()`。
+
+**怎么验证**：Wayland 会话里拖右下角，窗口应能跟着鼠标缩放；`journalctl` 里不再出现
+`BadWindow` 和 `segfault`。拖动仍然无效（见 `TROUBLESHOOTING.md` 已知限制 5），这是协议层面的。
 
 ---
 

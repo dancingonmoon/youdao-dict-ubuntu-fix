@@ -3,7 +3,7 @@
 #
 #   用法： sudo bash uninstall.sh
 #
-# 把 install.sh 改过的 7 个文件从 *.bak-* 备份还原回官方原版。
+# 把 install.sh 改过的 12 个文件从 *.bak-* 备份还原回官方原版。
 # 注意：还原后应用会恢复「启动即崩」的原始状态（这正是还原的意义）。
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +15,7 @@ need_installed
 
 hdr "还原为官方原版"
 
-# install.sh 可能改动的 7 个文件
+# install.sh 可能改动的 12 个文件
 FILES=(
     "dae/plugins.py"
     "app/plugins/youdao/pyquery/pyquery.py"
@@ -24,6 +24,10 @@ FILES=(
     "youdao-dict-backend.py"
     "dae/daeclient.py"
     "dae/window.py"
+    "dae/xutils.py"
+    "dae/shadowwindow.py"
+    "app/plugins/youdao/window.py"
+    "app/plugins/youdao/qml/DragableArea.qml"
 )
 
 if pgrep -f 'youdao-dict' >/dev/null 2>&1; then

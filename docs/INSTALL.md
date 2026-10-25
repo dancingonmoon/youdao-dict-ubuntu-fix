@@ -45,7 +45,7 @@ sudo bash install.sh
 
 1. 检查有道词典是否已安装
 2. 如果检测到应用正在运行，提醒你先退出（补丁改的是磁盘文件，运行中的进程不会变）
-3. 依次执行四个补丁（`payload/01` ~ `payload/04`），每个补丁都会**备份 → 修改 → 语法校验**
+3. 依次执行五个补丁（`payload/01` ~ `payload/05`），每个补丁都会**备份 → 修改 → 语法校验**
 4. 最后自动跑一遍体检
 
 想只修某一个问题，也可以单独运行，例如：
@@ -87,9 +87,14 @@ bash verify.sh
   02 youdao-dict-backend.py                  ✓ 已修（缩进正常）
   03 dae/daeclient.py                        ✓ 已修（app_id = youdao-dict）
   04 dae/window.py (setVisible)              ✓ 已修（@pyqtSlot(bool)）
+  05 dae/xutils.py (BadWindow)               ✓ 已修（只忽略 BadWindow）
+  05 dae/shadowwindow.py (延后阴影)          ✓ 已修（移到事件循环）
+  05 dae/window.py (X 窗口判空)              ✓ 已修
+  05 app/plugins/youdao/window.py            ✓ 已修（QWindow 定位/缩放）
+  05 DragableArea.qml (系统移动)             ✓ 已修（不支持时行为不变）
 
 结果
-  通过 7    失败 0    不适用 0
+  通过 12    失败 0    不适用 0
 ```
 
 在 Python 3.10 的老系统上，前四项可能显示「不适用——当前 Python 仍有该 API」，这是**正常的**（那些 API 还没被删，无需修）。
@@ -103,6 +108,7 @@ bash verify.sh
 - [ ] 输入一个单词查询，能出结果（`ec` 释义、柯林斯、例句等）
 - [ ] 左侧 dock 上**没有**多余的 python3 齿轮图标
 - [ ] 点顶栏的托盘小图标，窗口能显示/隐藏
+- [ ] 拖动窗口右下角能改变大小（Wayland 下左上角不跟手是有道自带的 bug，见已知限制）
 
 ## 6. 卸载 / 还原
 

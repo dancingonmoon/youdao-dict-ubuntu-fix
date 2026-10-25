@@ -102,6 +102,52 @@ else
     bad "04 dae/window.py (setVisible)" "未修 —— 托盘图标点了没反应"
 fi
 
+# ── 05 Wayland 崩溃 / 缩放 ───────────────────────────────────
+F="$YD_DIR/dae/xutils.py"
+if [ ! -f "$F" ]; then
+    n_a "05 dae/xutils.py (BadWindow)" "文件不存在"
+elif grep -q '_on_x_error' "$F"; then
+    ok "05 dae/xutils.py (BadWindow)" "已修（只忽略 BadWindow）"
+else
+    bad "05 dae/xutils.py (BadWindow)" "未修 —— Wayland 下仍可能启动即崩"
+fi
+
+F="$YD_DIR/dae/shadowwindow.py"
+if [ ! -f "$F" ]; then
+    n_a "05 dae/shadowwindow.py (延后阴影)" "文件不存在"
+elif grep -q '_defer_shadow' "$F"; then
+    ok "05 dae/shadowwindow.py (延后阴影)" "已修（移到事件循环）"
+else
+    bad "05 dae/shadowwindow.py (延后阴影)" "未修"
+fi
+
+F="$YD_DIR/dae/window.py"
+if [ ! -f "$F" ]; then
+    n_a "05 dae/window.py (X 窗口判空)" "文件不存在"
+elif grep -q 'is_x_client_window(xwin) else None' "$F"; then
+    ok "05 dae/window.py (X 窗口判空)" "已修"
+else
+    bad "05 dae/window.py (X 窗口判空)" "未修 —— 缩放不跟手"
+fi
+
+F="$YD_DIR/app/plugins/youdao/window.py"
+if [ ! -f "$F" ]; then
+    n_a "05 app/plugins/youdao/window.py" "文件不存在"
+elif grep -q 'def _putOnScreen' "$F"; then
+    ok "05 app/plugins/youdao/window.py" "已修（QWindow 定位/缩放）"
+else
+    bad "05 app/plugins/youdao/window.py" "未修"
+fi
+
+F="$YD_DIR/app/plugins/youdao/qml/DragableArea.qml"
+if [ ! -f "$F" ]; then
+    n_a "05 DragableArea.qml (系统移动)" "文件不存在"
+elif grep -q 'window.startMove()' "$F"; then
+    ok "05 DragableArea.qml (系统移动)" "已修（不支持时行为不变）"
+else
+    bad "05 DragableArea.qml (系统移动)" "未修"
+fi
+
 # ── 备份情况 ─────────────────────────────────────────────────
 n_bak="$(find "$YD_DIR" -name '*.bak-*' -type f 2>/dev/null | wc -l)"
 hdr "备份"

@@ -12,6 +12,9 @@
 | 百科搜不到 / 权威词典只剩柯林斯 | **修不了**，见下文「已知限制 1」 |
 | 托盘右键弹不出菜单 | **修不了**（成本过高），见「已知限制 2」 |
 | 点 × 只隐藏、退不掉 | 不是 bug，见「已知限制 3」 |
+| 启动几秒后进程消失（Wayland） | 跑 `sudo bash install.sh`（补丁 05），然后重启应用 |
+| 缩放窗口不跟手 | 跑 `sudo bash install.sh`（补丁 05）；左上角仍不跟手是应用自带 bug，见「已知限制 6」 |
+| 鼠标拖不动窗口（Wayland） | **修不了**，见「已知限制 5」 |
 | 重装 deb 后毛病全回来了 | 补丁被覆盖了，重跑 `sudo bash install.sh` |
 
 ---
@@ -60,6 +63,25 @@ GNOME 的托盘扩展需要一份 DBusMenu 才能画出菜单，Qt5 根本不给
 - 命令行 `pkill -f youdao-dict`
 - 想改成点 × 直接退出：**软件设置 → 取消勾选「窗口关闭时最小化到托盘」**
   （对应配置项 `~/.config/youdao-dict/config.ini` 里的 `[basic_option] close_to_tray`，默认 `True`）
+
+### 5. GNOME Wayland 下不能用鼠标拖动窗口
+
+**这是 Wayland 协议的硬限制，不是补丁没打好。**
+
+- Wayland 的窗口协议（xdg-shell）里**没有**"客户端设置窗口位置"这回事，位置完全由合成器决定；`QWindow.setPosition()` 调用后什么都不会发生（不报错）。
+- Qt 提供了"请合成器代为拖动"的 `QWindow.startSystemMove()`，但 Qt 5.15 只在 **tiling 合成器**（GNOME 的 wayland-extension 版、sway）里实现了它；普通 GNOME 会话里它**直接返回 false**。
+- 按键方案也不行：`Alt+←/→`、`Ctrl+Alt+←/→`、`Alt+Ctrl+←/→`、`Alt+Shift` 在这台机器上都已被 GNOME / ibus 占用，`Super` 系列则与系统快捷键重叠。
+
+实测记录（2026-10-25）：独立的最小 Qt 程序在 Wayland 下 `startSystemMove()` 返回 `false`，换成 `QT_QPA_PLATFORM=xcb` 返回 `true`。
+
+**要拖动，就让有道单独走 X11**：复制 `/usr/share/applications/youdao-dict.desktop` 到 `~/.local/share/applications/`，把 `Exec=python3 /usr/bin/youdao-dict` 改成 `Exec=env QT_QPA_PLATFORM=xcb python3 /usr/bin/youdao-dict`。
+代价：125% 缩放下文字略糊（实际输出像素仍是 1920×1200）。
+
+其它窗口（翻译小窗）缩放是好的；崩溃问题也已由补丁 05 解决。
+
+### 6. 左上角拖动缩放不跟手
+
+`dae/window.py` 的 `mouseMoveEvent` 每次移动都重新判断鼠标在哪个角（`getCursorType`）。抓住左上角缩一下、光标离开角落范围，它就把缩放判成右下角方向。这是应用自带逻辑（X11 下也一样），补丁没有改它。**右下角缩放正常**。
 
 ---
 
